@@ -29,7 +29,7 @@ template <- c("Your text from the editor fits into the template:<br><br> intro <
 
 # js code for SimpleMDE
 jsCode  <- '
-        shinyjs.get_intro_text = function() {
+        shinyjs.get_editor_text = function() {
             var intro_value  = intro_text_MDE.value();
             Shiny.onInputChange("textfield", intro_value);
         }
@@ -65,7 +65,7 @@ ui <- fluidPage(
         h4("Enter some Text"),
         helpText("It will be integrated into the template."),
         HTML('<textarea id="intro" rows="4" cols="75"></textarea>'), 
-        actionButton("apply_intro_changes_button", label = "Apply Changes"),
+        actionButton("apply_changes_button", label = "Apply Changes"),
         hr(), br(),
         h3("The final text"), 
         htmlOutput("introtext"),
@@ -92,25 +92,38 @@ server <- shinyServer(
         
         the_content <- shiny.collections::collection("content", connection)
         
+        # last_value_in_db <- the_content$collection %>% arrange(time) %>% filter(row_number() == n()) %>% select(text) 
+        
         
         js$start_editor("Initial Text for MDE")
-        js$get_intro_text()
+        # js$start_editor(last_value_in_db() )
+
+        js$get_editor_text()
         
-        # input_values <- reactive({
-        #     list(intro  = input$textfield)
-        # })
+        # get the value from the editor as reactive
+        value_in_editor <- reactive({
+            list(value = input$textfield)
+        })
+
         
-        ## write content of db into editor on startup
         
         
-        onclick("apply_intro_changes_button", {
-            js$get_intro_text()
+        onclick("apply_changes_button", {
+            js$get_editor_text()
+            
+            actual <- value_in_editor()$value
+            
+            cat("value in editor:", actual, "\n")
+            
             # write to db
-            shiny.collections::insert(the_content, list(text = input$textfield, time = now()) )
+            
+            # get last value in db; if actual == last, then nothing (== no change); else: write to db
+            shiny.collections::insert(the_content, list(text = actual, time = now()) )
+            # and trigger the output
         })
         
+        
         output$introtext <- renderText({
-            # content <-  input$textfield # input_values()$intro
             # read from db
             content_to_insert <- the_content$collection %>% arrange(time) %>% filter(row_number() == n()) %>% select(text)
             .replace_placeholder(template, content_to_insert, "intro")            
@@ -118,7 +131,8 @@ server <- shinyServer(
         
         
         output$content_db <- renderPrint({
-            the_content$collection})
+            the_content$collection
+        })
         
 })
     
