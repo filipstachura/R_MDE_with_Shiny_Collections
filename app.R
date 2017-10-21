@@ -1,8 +1,13 @@
 library(shiny)
 library(shinyjs)
+library(dplyr)
 
 # devtools::install_github("Appsilon/shiny.collections")
 library(shiny.collections)
+
+## TODO
+# reset text
+# back/forward to line x
 
 
 # helper: template as first argument to place the 
@@ -29,10 +34,10 @@ jsCode  <- '
             Shiny.onInputChange("textfield", intro_value);
         }
 
-        shinyjs.start_editor = function() {
+        shinyjs.start_editor = function(initial_value) {
             intro_text_MDE = new SimpleMDE({
                 element: document.getElementById("intro"),
-    	        initialValue: "Hello world!",
+    	        initialValue: initial_value[0],
                 spellChecker: false, 
                 autosave: {enabled: false}
         });     
@@ -88,7 +93,7 @@ server <- shinyServer(
         the_content <- shiny.collections::collection("content", connection)
         
         
-        js$start_editor()
+        js$start_editor("Initial Text for MDE")
         js$get_intro_text()
         
         # input_values <- reactive({
@@ -107,7 +112,7 @@ server <- shinyServer(
         output$introtext <- renderText({
             # content <-  input$textfield # input_values()$intro
             # read from db
-            content_to_insert <- the_content$collection[2]
+            content_to_insert <- the_content$collection %>% arrange(time) %>% filter(row_number() == n()) %>% select(text)
             .replace_placeholder(template, content_to_insert, "intro")            
         })
         
