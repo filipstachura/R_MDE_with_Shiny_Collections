@@ -92,34 +92,61 @@ server <- shinyServer(
         
         the_content <- shiny.collections::collection("content", connection)
         
-        # last_value_in_db <- the_content$collection %>% arrange(time) %>% filter(row_number() == n()) %>% select(text) 
         
         
         js$start_editor("Initial Text for MDE")
         # js$start_editor(last_value_in_db() )
-
+        
+        # why do we need this? init the js?
         js$get_editor_text()
+        
         
         # get the value from the editor as reactive
         value_in_editor <- reactive({
+            # js$get_editor_text()
             list(value = input$textfield)
         })
+        
+        #☺ get the last value in the db as reactive
+        last_value_in_db <- reactive({
+            # input$apply_changes_button
+            res <- the_content$collection %>% arrange(time) %>% filter(row_number() == n()) %>% select(text)
+            list(value_in_db = as.character(res[1, 1]))
+        })
+        
+        
+        
 
         
         
         
         onclick("apply_changes_button", {
+            
+            # refresh
             js$get_editor_text()
+
             
             actual <- value_in_editor()$value
+            last   <- last_value_in_db()$value_in_db
             
-            cat("value in editor:", actual, "\n")
+            cat("clicked", input$apply_changes_button, "\n")
+            cat("value in editor:    ", actual, "\n")
+            cat("value in db before: ", last, "\n")
             
             # write to db
             
             # get last value in db; if actual == last, then nothing (== no change); else: write to db
-            shiny.collections::insert(the_content, list(text = actual, time = now()) )
-            # and trigger the output
+            if (actual != last) {
+                shiny.collections::insert(the_content, list(text = actual, time = now()) )
+                cat("value in db after : ", last_value_in_db()$value_in_db)
+            } else {
+                # nothing
+                cat("content didn't change")
+            }
+            
+            cat("\n\n")
+            
+            # and trigger the output; HOW?
         })
         
         
