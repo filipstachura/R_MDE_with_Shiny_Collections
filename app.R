@@ -93,7 +93,6 @@ server <- shinyServer(
         the_content <- shiny.collections::collection("content", connection)
         
         
-        
         js$start_editor("Initial Text for MDE")
         # js$start_editor(last_value_in_db() )
         
@@ -124,27 +123,23 @@ server <- shinyServer(
             
             # refresh
             js$get_editor_text()
+            # print(input$textfield)
 
-            
             actual <- value_in_editor()$value
             last   <- last_value_in_db()$value_in_db
-            
+
             cat("clicked", input$apply_changes_button, "\n")
             cat("value in editor:    ", actual, "\n")
             cat("value in db before: ", last, "\n")
-            
-            # write to db
-            
-            # get last value in db; if actual == last, then nothing (== no change); else: write to db
+
+            # write to db if content in the editor changed
             if (actual != last) {
                 shiny.collections::insert(the_content, list(text = actual, time = now()) )
-                cat("value in db after : ", last_value_in_db()$value_in_db)
+                cat("value in db after : ", last_value_in_db()$value_in_db, "\n\n")
             } else {
                 # nothing
-                cat("content didn't change")
+                cat("content didn't change\n\n")
             }
-            
-            cat("\n\n")
             
             # and trigger the output; HOW?
         })
@@ -152,7 +147,8 @@ server <- shinyServer(
         
         output$introtext <- renderText({
             # read from db
-            content_to_insert <- the_content$collection %>% arrange(time) %>% filter(row_number() == n()) %>% select(text)
+            # content_to_insert <- the_content$collection %>% arrange(time) %>% filter(row_number() == n()) %>% select(text)
+            content_to_insert <- last_value_in_db()$value_in_db
             .replace_placeholder(template, content_to_insert, "intro")            
         })
         
