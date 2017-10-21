@@ -93,27 +93,38 @@ server <- shinyServer(
         the_content <- shiny.collections::collection("content", connection)
         
         
-        js$start_editor("Initial Text for MDE")
-        # js$start_editor(last_value_in_db() )
-        
-        # why do we need this? init the js?
-        js$get_editor_text()
+        # helper
+        .get_last_value_from_db <- function() {
+            res <- the_content$collection %>% arrange(time) %>% filter(row_number() == n()) %>% select(text)
+            return(as.character(res))
+        }
         
         
         # get the value from the editor as reactive
         value_in_editor <- reactive({
-            # js$get_editor_text()
             list(value = input$textfield)
         })
         
         #☺ get the last value in the db as reactive
+        # last_value_in_db <- reactive({
+        #     res <- the_content$collection %>% arrange(time) %>% filter(row_number() == n()) %>% select(text)
+        #     list(value_in_db = as.character(res[1, 1]))
+        # })
         last_value_in_db <- reactive({
-            # input$apply_changes_button
-            res <- the_content$collection %>% arrange(time) %>% filter(row_number() == n()) %>% select(text)
-            list(value_in_db = as.character(res[1, 1]))
+            list(value_in_db = .get_last_value_from_db())
         })
         
         
+        
+        # js$start_editor("Initial Text for MDE")
+        # startvalue <- isolate(value_in_editor()$value_in_db ) %>%  print()
+        # res <- isolate(the_content$collection %>% arrange(time) %>% filter(row_number() == n()) %>% select(text))
+        # startvalue <- as.character(res) %>%  print()
+        startvalue <- isolate(.get_last_value_from_db())
+        js$start_editor(startvalue)
+        
+        # why do we need this? init the js?
+        js$get_editor_text()
         
 
         
@@ -135,13 +146,17 @@ server <- shinyServer(
             # write to db if content in the editor changed
             if (actual != last) {
                 shiny.collections::insert(the_content, list(text = actual, time = now()) )
+                
+                # js$start_editor(actual)
+                
                 cat("value in db after : ", last_value_in_db()$value_in_db, "\n\n")
             } else {
                 # nothing
                 cat("content didn't change\n\n")
             }
             
-            # and trigger the output; HOW?
+    cat("\nWe have to update the value in the editor, too!\n\n")
+    # simplemde.value("This text will appear in the editor");
         })
         
         
