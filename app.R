@@ -40,7 +40,9 @@ system(paste0(getwd(), "/rethinkdb.exe"), wait = FALSE)
 connection <- shiny.collections::connect() 
 
 # Our dummy-template. Later we will replace 'intro' with the content from the editor.
-template <- c("Your text from the editor fits into the template:<br><br> intro <br><br>Great!")
+template <- c("Your text from the editor fits into the template:
+              <br><br> intro <br><br>
+              Great! And here ends the template.")
 
 
 # js code for SimpleMDE
@@ -49,15 +51,17 @@ jsCode  <- '
             var intro_value  = intro_text_MDE.value();
             Shiny.onInputChange("textfield", intro_value);
         }
-
         shinyjs.start_editor = function(initial_value) {
             intro_text_MDE = new SimpleMDE({
                 element: document.getElementById("intro"),
     	        initialValue: initial_value[0],
                 spellChecker: false, 
                 autosave: {enabled: false}
-        });     
-    }
+            });
+        }
+        shinyjs.update_editor = function(content) {
+                intro_text_MDE.value(content[0]);
+        }
 '
 
 
@@ -127,34 +131,48 @@ server <- shinyServer(
         # why do we need this? init the js?
         js$get_editor_text()
         
+        
+        # refresh 
+        observeEvent(input$apply_changes_button, {
+            js$get_editor_text()
+        })
+        
+        
         # Button clicked
         onclick("apply_changes_button", {
-            
-            # refresh input
-            js$get_editor_text()
-
             actual <- value_in_editor()$value
             last   <- last_value_in_db()$value_in_db
 
-            cat("clicked", input$apply_changes_button, "\n")
-            cat("value in editor:    ", actual, "\n")
-            cat("value in db before: ", last, "\n")
+            cat("\nclicked", input$apply_changes_button, "\n")
+            cat("value in editor:     ", actual, "\n")
+            cat("value in db before:  ", last, "\n")
 
-            # write to db and update editor if content in the editor changed
+            # write to db if content in the editor changed
             if (actual != last) {
-                shiny.collections::insert(the_content, list(text = actual, time = now()) )
-                
-                # js$start_editor(actual)
-                
-                cat("value in db after : ", last_value_in_db()$value_in_db, "\n\n")
+                shiny.collections::insert(the_content, list(text = actual, time = lubridate::now()) )
+                cat("value in db after:   ", last_value_in_db()$value_in_db, "\n")
             } else {
                 # nothing
                 cat("content didn't change\n\n")
             }
-            
-    cat("\nWe have to update the value in the editor, too!\n\n")
-    # simplemde.value("This text will appear in the editor");
+
         })
+        
+        # update the editor if the content in the db changed
+        # this happens, if another person applied changes
+        observe({
+            db_value     <- last_value_in_db()$value_in_db
+            editor_value <- value_in_editor()$value
+            
+            if (is.null(db_value) | is.null(editor_value)) {
+                # nothing on startup
+            } else {
+                if (db_value != editor_value) {
+                    js$update_editor(db_value)
+                }
+            }
+        })
+        
         
         
         output$introtext <- renderText({
