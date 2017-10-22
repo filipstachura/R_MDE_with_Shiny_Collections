@@ -1,3 +1,6 @@
+
+# global.R
+
 library(shiny)
 library(shinyjs)
 library(dplyr)
@@ -14,6 +17,19 @@ library(shiny.collections)
 # content into the template
 .replace_placeholder <- function(template, content, placeholder) {
     sub(pattern = placeholder, replacement = content, x = template)
+}
+
+# helper: get last value from the db
+.get_last_value_from_db <- function(coll) {
+    db <- coll$collection 
+    
+    # if a new db starts up, it will be empty
+    if (nrow(db) < 1) return(" ")
+    
+    
+    res <- db %>% arrange(time) %>% filter(row_number() == n()) %>% select(text)
+    
+    return(as.character(res))
 }
 
 
@@ -53,7 +69,7 @@ ui <- fluidPage(
     tags$style(HTML("
                     body { margin: 20px;}
                     .CodeMirror, .CodeMirror-scroll {
-                        min-height: 150px;
+                        min-height: 120px;
                     }
                     .footer { font-size: 0.9em; color: gray; }
                     ")
@@ -93,48 +109,29 @@ server <- shinyServer(
         the_content <- shiny.collections::collection("content", connection)
         
         
-        # helper
-        .get_last_value_from_db <- function() {
-            res <- the_content$collection %>% arrange(time) %>% filter(row_number() == n()) %>% select(text)
-            return(as.character(res))
-        }
-        
-        
         # get the value from the editor as reactive
         value_in_editor <- reactive({
             list(value = input$textfield)
         })
         
         #☺ get the last value in the db as reactive
-        # last_value_in_db <- reactive({
-        #     res <- the_content$collection %>% arrange(time) %>% filter(row_number() == n()) %>% select(text)
-        #     list(value_in_db = as.character(res[1, 1]))
-        # })
         last_value_in_db <- reactive({
-            list(value_in_db = .get_last_value_from_db())
+            list(value_in_db = .get_last_value_from_db(the_content))
         })
         
         
-        
-        # js$start_editor("Initial Text for MDE")
-        # startvalue <- isolate(value_in_editor()$value_in_db ) %>%  print()
-        # res <- isolate(the_content$collection %>% arrange(time) %>% filter(row_number() == n()) %>% select(text))
-        # startvalue <- as.character(res) %>%  print()
-        startvalue <- isolate(.get_last_value_from_db())
+        # start editor with last entry from db
+        startvalue <- isolate(.get_last_value_from_db(the_content))
         js$start_editor(startvalue)
         
         # why do we need this? init the js?
         js$get_editor_text()
         
-
-        
-        
-        
+        # Button clicked
         onclick("apply_changes_button", {
             
-            # refresh
+            # refresh input
             js$get_editor_text()
-            # print(input$textfield)
 
             actual <- value_in_editor()$value
             last   <- last_value_in_db()$value_in_db
@@ -143,7 +140,7 @@ server <- shinyServer(
             cat("value in editor:    ", actual, "\n")
             cat("value in db before: ", last, "\n")
 
-            # write to db if content in the editor changed
+            # write to db and update editor if content in the editor changed
             if (actual != last) {
                 shiny.collections::insert(the_content, list(text = actual, time = now()) )
                 
@@ -161,15 +158,14 @@ server <- shinyServer(
         
         
         output$introtext <- renderText({
-            # read from db
-            # content_to_insert <- the_content$collection %>% arrange(time) %>% filter(row_number() == n()) %>% select(text)
+            # read from db and insert the content into the template
             content_to_insert <- last_value_in_db()$value_in_db
             .replace_placeholder(template, content_to_insert, "intro")            
         })
         
-        
+        # show the content in the db (or part of it)
         output$content_db <- renderPrint({
-            the_content$collection
+            the_content$collection %>% select(-id)
         })
         
 })
