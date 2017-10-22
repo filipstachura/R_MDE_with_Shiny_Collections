@@ -41,15 +41,14 @@ connection <- shiny.collections::connect()
 
 # Our dummy-template. Later we will replace 'intro' with the content from the editor.
 template <- c("Your text from the editor fits into the template:
-              <br><br> intro <br><br>
+              <br> ---intro--- <br>
               Great! And here ends the template.")
 
 
 # js code for SimpleMDE
 jsCode  <- '
         shinyjs.get_editor_text = function() {
-            var intro_value  = intro_text_MDE.value();
-            Shiny.onInputChange("textfield", intro_value);
+            Shiny.onInputChange("textfield", intro_text_MDE.value());
         }
         shinyjs.start_editor = function(initial_value) {
             intro_text_MDE = new SimpleMDE({
@@ -68,12 +67,11 @@ jsCode  <- '
 ui <- fluidPage(
     useShinyjs(),
     extendShinyjs(text = jsCode),    
-    # theme = shinythemes::shinytheme("flatly"),
     tags$head(HTML('<link rel="stylesheet" type="text/css" href="simplemde.min.css">')),
     tags$style(HTML("
                     body { margin: 20px;}
                     .CodeMirror, .CodeMirror-scroll {
-                        min-height: 120px;
+                        min-height: 100px;
                     }
                     .footer { font-size: 0.9em; color: gray; }
                     ")
@@ -81,15 +79,15 @@ ui <- fluidPage(
     title = "Markdown Editor",
     fluidRow(
         h1("Markdown Editor"),
-        br(),
         h4("Enter some Text"),
         helpText("It will be integrated into the template."),
-        HTML('<textarea id="intro" rows="4" cols="75"></textarea>'), 
+        HTML('<textarea id="intro" rows="4" cols="75"></textarea>'),
+        # textAreaInput("intro", "", cols = "75"),
         actionButton("apply_changes_button", label = "Apply Changes"),
-        hr(), br(),
+        hr(), 
         h3("The final text"), 
         htmlOutput("introtext"),
-        br(), hr(),
+        hr(),
         h4("Raw content from the db"),
         verbatimTextOutput("content_db"),
         hr(),
@@ -131,15 +129,12 @@ server <- shinyServer(
         # why do we need this? init the js?
         js$get_editor_text()
         
-        
-        # refresh 
-        observeEvent(input$apply_changes_button, {
-            js$get_editor_text()
-        })
-        
-        
         # Button clicked
-        onclick("apply_changes_button", {
+        # onclick("apply_changes_button", {
+        observeEvent(input$apply_changes_button, {
+            # refresh
+            js$get_editor_text()
+            
             actual <- value_in_editor()$value
             last   <- last_value_in_db()$value_in_db
 
@@ -155,35 +150,34 @@ server <- shinyServer(
                 # nothing
                 cat("content didn't change\n\n")
             }
-
+            
         })
         
         # update the editor if the content in the db changed
-        # this happens, if another person applied changes
-        observe({
-            db_value     <- last_value_in_db()$value_in_db
-            editor_value <- value_in_editor()$value
-            
-            if (is.null(db_value) | is.null(editor_value)) {
-                # nothing on startup
-            } else {
-                if (db_value != editor_value) {
-                    js$update_editor(db_value)
-                }
-            }
-        })
-        
+        # this happens, changes were applied in another instance
+        # observe({
+        #     db_value     <- last_value_in_db()$value_in_db
+        #     editor_value <- value_in_editor()$value
+        # 
+        #     if (is.null(db_value) | is.null(editor_value)) {
+        #         # nothing on startup
+        #     } else {
+        #         if (db_value != editor_value) {
+        #             js$update_editor(db_value)
+        #         }
+        #     }
+        # })
         
         
         output$introtext <- renderText({
             # read from db and insert the content into the template
             content_to_insert <- last_value_in_db()$value_in_db
-            .replace_placeholder(template, content_to_insert, "intro")            
+            .replace_placeholder(template, content_to_insert, "---intro---")            
         })
         
         # show the content in the db (or part of it)
         output$content_db <- renderPrint({
-            the_content$collection %>% select(-id)
+            the_content$collection %>% select(time, text) %>% arrange(desc(time))
         })
         
 })
