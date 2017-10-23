@@ -20,15 +20,13 @@ library(shiny.collections)
 }
 
 # helper: get last value from the db
-.get_last_value_from_db <- function(coll) {
+.get_last_value_in_db_from_db <- function(coll) {
     db <- coll$collection 
     
     # if a new db starts up, it will be empty
     if (nrow(db) < 1) return(" ")
     
-    
     res <- db %>% arrange(time) %>% filter(row_number() == n()) %>% select(text)
-    
     return(as.character(res))
 }
 
@@ -86,6 +84,7 @@ ui <- fluidPage(
         actionButton("apply_changes_button", label = "Apply Changes"),
         hr(), 
         h3("The final text"), 
+        helpText("This text will be part of  a .Rmd report."), 
         htmlOutput("introtext"),
         hr(),
         h4("Raw content from the db"),
@@ -108,76 +107,80 @@ ui <- fluidPage(
 server <- shinyServer(
     function(input, output, session) {
         
-        the_content <- shiny.collections::collection("content", connection)
+        who_clicked <- reactiveValues(
+                        token   = "NULL", 
+                        clicked = FALSE)
         
+        the_content <- shiny.collections::collection("content", connection)
         
         # get the value from the editor as reactive
         value_in_editor <- reactive({
-            list(value = input$textfield)
+            value <- input$textfield
+            if (is.null(value)) value <- " "
+            list(value = value)
         })
         
-        #☺ get the last value in the db as reactive
+        # get the last value in the db as reactive
         last_value_in_db <- reactive({
-            list(value_in_db = .get_last_value_from_db(the_content))
+            list(value = .get_last_value_in_db_from_db(the_content))
         })
         
-        
-        # start editor with last entry from db
-        startvalue <- isolate(.get_last_value_from_db(the_content))
+        # start the editor with last entry from db
+        startvalue <- isolate(.get_last_value_in_db_from_db(the_content))
         js$start_editor(startvalue)
         
         # why do we need this? init the js?
         js$get_editor_text()
         
         # Button clicked
-        # onclick("apply_changes_button", {
-        observeEvent(input$apply_changes_button, {
-            # refresh
-            js$get_editor_text()
-            
-            actual <- value_in_editor()$value
-            last   <- last_value_in_db()$value_in_db
-
-            cat("\nclicked", input$apply_changes_button, "\n")
-            cat("value in editor:     ", actual, "\n")
-            cat("value in db before:  ", last, "\n")
-
-            # write to db if content in the editor changed
-            if (actual != last) {
-                shiny.collections::insert(the_content, list(text = actual, time = lubridate::now()) )
-                cat("value in db after:   ", last_value_in_db()$value_in_db, "\n")
-            } else {
-                # nothing
-                cat("content didn't change\n\n")
-            }
-            
+        onclick("apply_changes_button", {
+            js$get_editor_text() # refresh
+            who_clicked$token <- session$token
+            who_clicked$clicked <- TRUE
+            # print(who_clicked$token)
         })
         
-        # update the editor if the content in the db changed
-        # this happens, changes were applied in another instance
-        # observe({
-        #     db_value     <- last_value_in_db()$value_in_db
-        #     editor_value <- value_in_editor()$value
-        # 
-        #     if (is.null(db_value) | is.null(editor_value)) {
-        #         # nothing on startup
-        #     } else {
-        #         if (db_value != editor_value) {
-        #             js$update_editor(db_value)
-        #         }
-        #     }
-        # })
+        # update the db AFTER the button is clicked
+        observe({
+            actual <- value_in_editor()$value
+            last   <- last_value_in_db()$value
+
+            # write to db if content in the editor changed, 
+            if (actual != last) {
+                if (session$token == who_clicked$token & who_clicked$clicked) {
+                    shiny.collections::insert(the_content, list(
+                            who  = session$token,
+                            time = lubridate::now(), 
+                            text = actual) )
+                } 
+            } 
+            who_clicked$clicked <- FALSE
+        })
         
+        
+        
+        # update the other editors
+        observe({
+            last <- last_value_in_db()$value
+            if (session$token != who_clicked$token ) {
+                js$update_editor(last)
+            }
+        })
+        
+        # observe({
+        #     value_in_editor()$value
+        #     js$get_editor_text()
+        # })
         
         output$introtext <- renderText({
             # read from db and insert the content into the template
-            content_to_insert <- last_value_in_db()$value_in_db
+            content_to_insert <- last_value_in_db()$value
             .replace_placeholder(template, content_to_insert, "---intro---")            
         })
         
         # show the content in the db (or part of it)
         output$content_db <- renderPrint({
-            the_content$collection %>% select(time, text) %>% arrange(desc(time))
+            the_content$collection %>% select(who,  text, time) %>% arrange(desc(time))
         })
         
 })
