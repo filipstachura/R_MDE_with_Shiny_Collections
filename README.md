@@ -1,4 +1,4 @@
-# Use MDE in an Shiny App 
+# Use a Markdown Editor (MDE) in an Shiny App 
 
 ### Proof of Concept: Can we store the values in MDE in a shiny.collection?
 
@@ -18,5 +18,6 @@ Problems arise whe we have multiple clients (editors).
 - If other clients start to change the input, the text from the multiple editors doesn't refresh and mixes up with 'old' text, that was saved some steps before (where is it captured...?)
 
 My knowledge of shiny and JS is marginal, do I am not able to solve the problem(s) now. Which basically means, I'm giving up on this project.
+
 
 
