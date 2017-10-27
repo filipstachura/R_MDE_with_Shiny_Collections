@@ -4,7 +4,7 @@
 
 We use <a href="https://simplemde.com/" target="_blank">SimpleMDE -  Markdown Editor</a> a simple Markdown Editor to collect user input. 
 
-This input is stored in shiny.collections `rethinkdb` (db) and could later be integrated into a Markdown Report.
+This input is stored in  [shiny.collections](https://github.com/Appsilon/shiny.collections) `rethinkdb` (db) and could later be integrated into a Markdown Report.
 
 ## Solved so far
 - Input from the editor is written into the db
